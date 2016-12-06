@@ -14,7 +14,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from astropy.coordinates import SkyCoord
 from astropy import units as u
-from astropy.io.ascii import SExtractor
+from astropy.io.ascii import SExtractor, BaseReader
 
 from config import *
 
@@ -95,6 +95,8 @@ def match_catalog(im):
     stcat = os.path.join(home, "stellar_catalog/Stripe82Stars_Ivezick.fit")
     hdulist = pf.open(stcat)
     catalog = hdulist[1].data
+    h = hdulist[1].header
+    print h
     cradec = SkyCoord(ra=catalog["RAJ2000"] * u.degree,
                       dec=catalog["DEJ2000"] * u.degree)
     # Trimming catalog considering only regions around the observed field
@@ -104,25 +106,18 @@ def match_catalog(im):
                       dec=trimcat["DEJ2000"] * u.degree)
     ##########################################################################
     idx, d2d, d3d = c.match_to_catalog_sky(cradec)
-    if band == "G":
-        data = np.column_stack((trimcat[idx]["RAJ2000"],
+    data = np.column_stack((trimcat[idx]["RAJ2000"],
                                 trimcat[idx]["DEJ2000"],
                                 sexcat["MAG_AUTO"] + 2.5 * np.log10(exptime),
                                 sexcat["MAGERR_AUTO"],
-                                trimcat[idx]["gmag"], np.zeros(len(idx))))
-    elif band == "I":
-         data = np.column_stack((trimcat[idx]["RAJ2000"],
-                                trimcat[idx]["DEJ2000"],
-                                sexcat["MAG_AUTO"] + 2.5 * np.log10(exptime),
-                                sexcat["MAGERR_AUTO"],
-                                trimcat[idx]["imag"], trimcat[idx]["e_imag"]))
-    else:
-        print "problems with image ", im
-        return
+                                trimcat[idx]["gmag"], np.zeros(len(idx)),
+                                np.ones_like(idx) * airmass))
     i = np.where(d2d < 1 * u.arcsec)[0]
     data = data[i]
-    # Cleaning data
+    ###########################################################################
+    # Cleaning data from photometry with large uncertainties
     data = data[data[:,3] < .1]
+    ##########################################################################
     mi =  data[:,2] - 0.18 * airmass
     plt.plot(data[:,4], mi , "ok")
     # plt.axhline(y=np.median(zp), c="r", ls="--")
@@ -170,7 +165,6 @@ def run_cefca():
 
 if __name__ == "__main__":
     config_files = load_sextractor_config_files()
-    extinction_coeff()
     run_splus()
     run_cefca()
 
