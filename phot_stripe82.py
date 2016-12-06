@@ -95,8 +95,6 @@ def match_catalog(im):
     stcat = os.path.join(home, "stellar_catalog/Stripe82Stars_Ivezick.fit")
     hdulist = pf.open(stcat)
     catalog = hdulist[1].data
-    h = hdulist[1].header
-    print h
     cradec = SkyCoord(ra=catalog["RAJ2000"] * u.degree,
                       dec=catalog["DEJ2000"] * u.degree)
     # Trimming catalog considering only regions around the observed field
@@ -106,26 +104,28 @@ def match_catalog(im):
                       dec=trimcat["DEJ2000"] * u.degree)
     ##########################################################################
     idx, d2d, d3d = c.match_to_catalog_sky(cradec)
-    data = np.column_stack((trimcat[idx]["RAJ2000"],
-                                trimcat[idx]["DEJ2000"],
-                                sexcat["MAG_AUTO"] + 2.5 * np.log10(exptime),
-                                sexcat["MAGERR_AUTO"],
-                                trimcat[idx]["gmag"], np.zeros(len(idx)),
-                                np.ones_like(idx) * airmass))
+    data = np.column_stack((trimcat[idx]["RAJ2000"], trimcat[idx]["DEJ2000"],
+                            trimcat[idx]["umag"], trimcat[idx]["e_umag"],
+                            trimcat[idx]["gmag"], np.zeros(len(idx)),
+                            trimcat[idx]["rmag"], trimcat[idx]["e_rmag"],
+                            trimcat[idx]["imag"], trimcat[idx]["e_imag"],
+                            trimcat[idx]["zmag"], trimcat[idx]["e_zmag"],
+                            sexcat["MAG_AUTO"] + 2.5 * np.log10(exptime),
+                           sexcat["MAGERR_AUTO"], np.ones_like(idx) * airmass))
     i = np.where(d2d < 1 * u.arcsec)[0]
     data = data[i]
     ###########################################################################
     # Cleaning data from photometry with large uncertainties
-    data = data[data[:,3] < .1]
+    data = data[data[:,13] < .1]
     ##########################################################################
-    mi =  data[:,2] - 0.18 * airmass
-    plt.plot(data[:,4], mi , "ok")
-    # plt.axhline(y=np.median(zp), c="r", ls="--")
-    plt.ylim(plt.ylim()[::-1])
-    plt.xlim(plt.xlim()[::-1])
-    plt.show(block=True)
-    idx = idx[i]
-    d2d = d2d[i]
+    h = ["RAJ2000", "DEJ2000", "umag", "e_umag", "gmag", "e_gmag", "rmag",
+         "e_rmag", "imag", "e_imag", "zmag", "e_zmag", "mag_inst",
+         "e_mag_inst", "airmass"]
+    newcat = "{}_{}".format(band, im.split("-")[2]).replace(".fits", ".cat")
+    with open(newcat, "w") as f:
+        f.write("#" + " ".join(h) + "\n")
+        np.savetxt(f, data)
+    return
 
 def run_splus():
     os.chdir(south_data_dir)
